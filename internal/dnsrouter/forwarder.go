@@ -49,14 +49,8 @@
 //
 // # Configuration
 //
-// The forwarder type can be configured in dnsrouter.yaml:
-//
-//	listen: 0.0.0.0:53
-//	forwarder_type: native  # or "coredns", "ebpf" when available
-//	routes:
-//	  - domain: example.com
-//	    backend: 127.0.0.1:5310
-//
+// Routes are derived from config.json tunnels at startup.
+// The forwarder type is currently hardcoded to "native".
 package dnsrouter
 
 // DNSForwarder defines the interface for DNS forwarding implementations.

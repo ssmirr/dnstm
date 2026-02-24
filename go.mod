@@ -7,7 +7,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/crypto v0.18.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

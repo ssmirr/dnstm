@@ -261,24 +261,19 @@ func (r *Router) switchToMultiMode() error {
 		}
 	}
 
-	// 7. Regenerate DNS router config
-	if err := r.regenerateDNSRouterConfig(); err != nil {
-		return r.rollback(snapshot, fmt.Sprintf("failed to generate DNS router config: %v", err))
-	}
-
-	// 8. Save config
+	// 7. Save config
 	if err := r.config.Save(); err != nil {
 		return r.rollback(snapshot, fmt.Sprintf("failed to save config: %v", err))
 	}
 
-	// 9. Create DNS router service if needed
+	// 8. Create DNS router service if needed
 	if !r.dnsrouter.IsServiceInstalled() {
 		if err := r.dnsrouter.CreateService(); err != nil {
 			return r.rollback(snapshot, fmt.Sprintf("failed to create DNS router service: %v", err))
 		}
 	}
 
-	// 10. Start all tunnels FIRST (before dnsrouter)
+	// 9. Start all tunnels FIRST (before dnsrouter)
 	//     Start() also enables the systemd service
 	for tag, tunnel := range r.tunnels {
 		if err := tunnel.Start(); err != nil {
@@ -286,7 +281,7 @@ func (r *Router) switchToMultiMode() error {
 		}
 	}
 
-	// 11. Start DNS router AFTER tunnels are ready
+	// 10. Start DNS router AFTER tunnels are ready
 	if err := r.dnsrouter.Start(); err != nil {
 		return r.rollback(snapshot, fmt.Sprintf("failed to start DNS router: %v", err))
 	}

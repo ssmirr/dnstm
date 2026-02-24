@@ -5,6 +5,7 @@ import (
 
 	"github.com/net2share/dnstm/internal/actions"
 	"github.com/net2share/dnstm/internal/config"
+	"github.com/net2share/dnstm/internal/dnsrouter"
 	"github.com/net2share/dnstm/internal/router"
 )
 
@@ -113,9 +114,9 @@ func HandleTunnelStop(ctx *actions.Context) error {
 		ctx.Output.Warning("Failed to save config: " + err.Error())
 	}
 
-	// Multi mode: regenerate DNS router config and restart DNS router
+	// Multi mode: restart DNS router to pick up config change
 	if cfg.IsMultiMode() {
-		if err := regenerateDNSRouter(cfg); err != nil {
+		if err := restartDNSRouterIfActive(); err != nil {
 			ctx.Output.Warning("Failed to update DNS router: " + err.Error())
 		}
 	}
@@ -166,11 +167,11 @@ func HandleTunnelRestart(ctx *actions.Context) error {
 	return nil
 }
 
-// enableAndStartTunnel regenerates DNS router config in multi mode,
+// enableAndStartTunnel restarts the DNS router in multi mode,
 // and starts (or restarts) the tunnel. Start/Restart handle systemd enabling.
 func enableAndStartTunnel(ctx *actions.Context, cfg *config.Config, tunnel *router.Tunnel) error {
 	if cfg.IsMultiMode() {
-		if err := regenerateDNSRouter(cfg); err != nil {
+		if err := restartDNSRouterIfActive(); err != nil {
 			ctx.Output.Warning("Failed to update DNS router: " + err.Error())
 		}
 	}
@@ -181,20 +182,11 @@ func enableAndStartTunnel(ctx *actions.Context, cfg *config.Config, tunnel *rout
 	return tunnel.Start()
 }
 
-// regenerateDNSRouter regenerates DNS router config and restarts it.
-func regenerateDNSRouter(cfg *config.Config) error {
-	r, err := router.New(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create router: %w", err)
-	}
-	if err := r.RegenerateDNSRouterConfig(); err != nil {
-		return fmt.Errorf("failed to regenerate DNS router config: %w", err)
-	}
-	dnsRouter := r.GetDNSRouterService()
-	if dnsRouter.IsActive() {
-		if err := dnsRouter.Restart(); err != nil {
-			return fmt.Errorf("failed to restart DNS router: %w", err)
-		}
+// restartDNSRouterIfActive restarts the DNS router service if it's running.
+func restartDNSRouterIfActive() error {
+	svc := dnsrouter.NewService()
+	if svc.IsActive() {
+		return svc.Restart()
 	}
 	return nil
 }

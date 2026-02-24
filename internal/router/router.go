@@ -83,11 +83,6 @@ func (r *Router) startSingleMode() error {
 
 // startMultiMode starts the DNS router and all enabled tunnels.
 func (r *Router) startMultiMode() error {
-	// Generate DNS router config
-	if err := r.regenerateDNSRouterConfig(); err != nil {
-		return fmt.Errorf("failed to generate DNS router config: %w", err)
-	}
-
 	// Create DNS router service if needed
 	if !r.dnsrouter.IsServiceInstalled() {
 		if err := r.dnsrouter.CreateService(); err != nil {
@@ -223,9 +218,11 @@ func (r *Router) AddTunnel(cfg *config.TunnelConfig) error {
 			r.config.Route.Active = cfg.Tag
 		}
 	} else {
-		// In multi mode: regenerate DNS router config
-		if err := r.regenerateDNSRouterConfig(); err != nil {
-			return fmt.Errorf("failed to regenerate DNS router config: %w", err)
+		// In multi mode: restart DNS router to pick up new route
+		if r.dnsrouter.IsActive() {
+			if err := r.dnsrouter.Restart(); err != nil {
+				return fmt.Errorf("failed to restart DNS router: %w", err)
+			}
 		}
 		// Set as default if first tunnel
 		if r.config.Route.Default == "" {
@@ -284,9 +281,11 @@ func (r *Router) RemoveTunnel(tag string) error {
 			}
 		}
 
-		// Regenerate DNS router config
-		if err := r.regenerateDNSRouterConfig(); err != nil {
-			return fmt.Errorf("failed to regenerate DNS router config: %w", err)
+		// Restart DNS router to pick up removed route
+		if r.dnsrouter.IsActive() {
+			if err := r.dnsrouter.Restart(); err != nil {
+				return fmt.Errorf("failed to restart DNS router: %w", err)
+			}
 		}
 	}
 
@@ -313,7 +312,7 @@ func (r *Router) GetConfig() *config.Config {
 	return r.config
 }
 
-// Reload reloads the configuration and regenerates the DNS router config.
+// Reload reloads the configuration and restarts the DNS router if active.
 func (r *Router) Reload() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -329,12 +328,8 @@ func (r *Router) Reload() error {
 		r.tunnels[t.Tag] = NewTunnel(t)
 	}
 
-	// Only regenerate and restart DNS router in multi mode
-	if r.config.IsMultiMode() {
-		if err := r.regenerateDNSRouterConfig(); err != nil {
-			return fmt.Errorf("failed to regenerate DNS router config: %w", err)
-		}
-
+	// Restart DNS router in multi mode to pick up config changes
+	if r.config.IsMultiMode() && r.dnsrouter.IsActive() {
 		if err := r.dnsrouter.Restart(); err != nil {
 			return fmt.Errorf("failed to restart DNS router: %w", err)
 		}
@@ -377,70 +372,6 @@ func (r *Router) ensureCryptoMaterial(cfg *config.TunnelConfig) error {
 	return nil
 }
 
-// RegenerateDNSRouterConfig regenerates the DNS router configuration.
-func (r *Router) RegenerateDNSRouterConfig() error {
-	return r.regenerateDNSRouterConfig()
-}
-
-// regenerateDNSRouterConfig is the internal implementation.
-func (r *Router) regenerateDNSRouterConfig() error {
-	// Resolve listen address (0.0.0.0 -> external IP)
-	listenAddr := r.resolveListenAddress(r.config.Listen.Address)
-
-	// Convert tunnels to RouteInputs
-	routes := r.convertToRouteInputs()
-
-	// Get default backend
-	defaultBackend := ""
-	if r.config.Route.Default != "" {
-		if t := r.config.GetTunnelByTag(r.config.Route.Default); t != nil {
-			defaultBackend = fmt.Sprintf("127.0.0.1:%d", t.Port)
-		}
-	}
-
-	cfg := dnsrouter.GenerateConfig(listenAddr, routes, defaultBackend)
-
-	if err := dnsrouter.SaveConfig(cfg); err != nil {
-		return fmt.Errorf("failed to save DNS router config: %w", err)
-	}
-
-	return nil
-}
-
-// resolveListenAddress resolves a listen address, replacing 0.0.0.0 with external IP.
-func (r *Router) resolveListenAddress(addr string) string {
-	// Check if address uses 0.0.0.0
-	if len(addr) < 8 || addr[:8] != "0.0.0.0:" {
-		return addr
-	}
-
-	// Extract port
-	port := addr[8:]
-
-	// Try to detect external IP
-	externalIP, err := network.GetExternalIP()
-	if err != nil {
-		// Fall back to original address if detection fails
-		return addr
-	}
-
-	return fmt.Sprintf("%s:%s", externalIP, port)
-}
-
-// convertToRouteInputs converts enabled tunnels to dnsrouter.RouteInput slice.
-func (r *Router) convertToRouteInputs() []dnsrouter.RouteInput {
-	var routes []dnsrouter.RouteInput
-	for _, t := range r.config.Tunnels {
-		if t.IsEnabled() {
-			routes = append(routes, dnsrouter.RouteInput{
-				Domain:  t.Domain,
-				Backend: fmt.Sprintf("127.0.0.1:%d", t.Port),
-			})
-		}
-	}
-	return routes
-}
-
 // SetDefaultRoute sets the default routing tunnel.
 func (r *Router) SetDefaultRoute(tag string) error {
 	if tag != "" {
@@ -451,12 +382,15 @@ func (r *Router) SetDefaultRoute(tag string) error {
 
 	r.config.Route.Default = tag
 
-	if err := r.regenerateDNSRouterConfig(); err != nil {
+	if err := r.config.Save(); err != nil {
 		return err
 	}
 
-	if err := r.config.Save(); err != nil {
-		return err
+	// Restart DNS router to pick up new default route
+	if r.dnsrouter.IsActive() {
+		if err := r.dnsrouter.Restart(); err != nil {
+			return err
+		}
 	}
 
 	return nil

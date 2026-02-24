@@ -98,7 +98,6 @@ Each tunnel stores its cryptographic material in `/etc/dnstm/tunnels/<tag>/`:
 ```
 /etc/dnstm/
 ├── config.json           # Main router configuration
-├── dnsrouter.yaml        # DNS router config (multi-mode)
 ├── certs/                # TLS certificates
 │   ├── domain_cert.pem
 │   └── domain_key.pem

@@ -489,6 +489,19 @@ func ClearNATOnly() {
 	}
 }
 
+// ResolveListenAddress resolves a listen address, replacing 0.0.0.0 with external IP.
+func ResolveListenAddress(addr string) string {
+	if len(addr) < 8 || addr[:8] != "0.0.0.0:" {
+		return addr
+	}
+	port := addr[8:]
+	externalIP, err := GetExternalIP()
+	if err != nil {
+		return addr
+	}
+	return fmt.Sprintf("%s:%s", externalIP, port)
+}
+
 // GetExternalIP returns the external (non-loopback, non-private) IP address.
 // Falls back to the first non-loopback IP if no external IP is found.
 func GetExternalIP() (string, error) {

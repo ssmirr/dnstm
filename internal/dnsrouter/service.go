@@ -2,7 +2,6 @@ package dnsrouter
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/net2share/dnstm/internal/service"
 	"github.com/net2share/dnstm/internal/system"
@@ -11,21 +10,17 @@ import (
 const (
 	ServiceName = "dnstm-dnsrouter"
 	BinaryName  = "dnstm-dnsrouter"
-	ConfigDir   = "/etc/dnstm"
-	ConfigFile  = "dnsrouter.yaml"
 )
 
 // Service manages the DNS router as a systemd service.
 type Service struct {
 	binaryPath string
-	configPath string
 }
 
 // NewService creates a new DNS router service manager.
 func NewService() *Service {
 	return &Service{
 		binaryPath: getBinaryPath(),
-		configPath: filepath.Join(ConfigDir, ConfigFile),
 	}
 }
 

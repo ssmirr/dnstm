@@ -200,7 +200,6 @@ Classic DNS tunnel using Curve25519 keys.
 ```
 /etc/dnstm/
 ├── config.json           # Main configuration (JSON)
-├── dnsrouter.yaml        # DNS router config (multi-mode, internal)
 └── tunnels/              # Per-tunnel directories
     └── <tag>/
         ├── cert.pem      # TLS certificate (Slipstream)
